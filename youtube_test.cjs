@@ -27,7 +27,7 @@ const proxyHost = 'http://localhost:4433';
       '--enable-unsafe-swiftshader',
       '--log-net-log=netlog.json',
       '--net-log-capture-mode=IncludeCookiesAndCredentials',
-      // `--proxy-server=${proxyHost}`,
+      `--proxy-server=${proxyHost}`,
     ],
   });
 
@@ -36,23 +36,45 @@ const proxyHost = 'http://localhost:4433';
   // Browser console logs
   page.on('console', msg => console.log('[PAGE LOG]', msg.text()));
 
-  // Log video segment fetches
+  page.on('request', async request => {
+    const url = request.url();
+    const method = request.method();
+    const type = request.resourceType().toUpperCase();
+
+    // Log video chunk fetches
+    if (url.includes('googlevideo.com') && url.includes('mime=video')) {
+      console.log(`[VIDEO CHUNK] ${method} ${type} ${url.split('?')[0]}`);
+    }
+  });
+
+
   page.on('response', async (res) => {
     const url = res.url();
+    const status = res.status();
+  
+    // Log video chunk fetches
     if (url.includes('googlevideo.com') && url.includes('mime=video')) {
-      const status = res.status();
       console.log(`[VIDEO CHUNK] ${status} ${url.split('?')[0]}`);
     }
   });
 
   console.log('[INFO] Navigating to YouTube embed...');
-  // await page.goto('https://www.youtube.com/embed/5YGW2JRxWUU?autoplay=1&mute=1', {
-  //   waitUntil: 'domcontentloaded',
-  // });
+  
+  // Japen-blocked video
   await page.goto('https://www.youtube.com/embed/5YGW2JRxWUU?autoplay=1&mute=1', {
-    waitUntil: 'networkidle2',
+    waitUntil: 'domcontentloaded',
   });
 
+  // 30sec video
+  // await page.goto('https://www.youtube.com/embed/tWoo8i_VkvI?autoplay=1&mute=1', {
+  //   waitUntil: 'domcontentloaded',
+  // });
+
+
+  // not blocked video
+  // await page.goto('https://www.youtube.com/embed/YE7VzlLtp-4?autoplay=1&mute=1', {
+  //   waitUntil: 'domcontentloaded',
+  // });
 
 
   console.log('[INFO] Waiting for <video> element...');
@@ -69,6 +91,10 @@ const proxyHost = 'http://localhost:4433';
     video.addEventListener('waiting', () => log('waiting (buffering)'));
     video.addEventListener('ended', () => log('ended'));
     video.addEventListener('timeupdate', () => {
+      if (video.currentTime === 0) {
+        log("waiting for processing...");
+        return; // Ignore the initial timeupdate
+      } // Ignore the initial timeupdate
       log('timeupdate:', video.currentTime.toFixed(2));
     });
     video.addEventListener('progress', () => {
@@ -79,12 +105,12 @@ const proxyHost = 'http://localhost:4433';
       log('progress:', buf.join(', '));
     });
 
-    // just for catching the initial play error
-    video.play().then(() => {
-      log('initial play success');
-    }).catch(err => {
-      log('initial play error:', err);
-    });
+    // // just for catching the initial play error
+    // video.play().then(() => {
+    //   log('initial play success');
+    // }).catch(err => {
+    //   log('initial play error:', err);
+    // });
 
     // Retry if necessary
     setTimeout(() => {
@@ -101,6 +127,7 @@ const proxyHost = 'http://localhost:4433';
   // Poll until fully buffered or ended
   let fullyBuffered = false;
   let ended = false;
+  let waitingshotCount = 0;
   let screenshotCount = 0;
 
   while (!fullyBuffered && !ended) {
@@ -118,10 +145,16 @@ const proxyHost = 'http://localhost:4433';
         };
       });
   
-      if (isNaN(result.buffered) || isNaN(result.duration)) {
-        throw new Error('Buffered or duration returned NaN.');
+      if(result.buffered === 0) { 
+        console.log(`[INFO] Video is not playing yet. Waiting more...`);
+        const failFilename = path.join(screenshotDir, `waitshot_${String(waitingshotCount).padStart(2, '0')}.png`);
+        await page.screenshot({ path: failFilename });
+        console.log(`[INFO] Waiting screenshot saved: ${failFilename}`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        waitingshotCount++;
+        continue;
       }
-  
+
       console.log(`[INFO] Buffered: ${result.buffered.toFixed(2)} / ${result.duration.toFixed(2)} sec`);
   
       const filename = path.join(screenshotDir, `screenshot_${String(screenshotCount).padStart(2, '0')}.png`);

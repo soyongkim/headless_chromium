@@ -22,11 +22,10 @@ const requestMap = new Map();
       '--autoplay-policy=no-user-gesture-required',
       '--no-sandbox',
       '--mute-audio',
-      '--disable-gpu',
-      '--enable-unsafe-swiftshader',
       '--ignore-certificate-errors',
-      '--enable-logging=stderr',
-      '--v=1',
+      '--enable-unsafe-swiftshader',
+      '--log-net-log=netlog.json',
+      '--net-log-capture-mode=IncludeCookiesAndCredentials',
       `--proxy-server=${proxyHost}`,
     ],
   });
@@ -34,22 +33,22 @@ const requestMap = new Map();
   const page = await browser.newPage();
 
   // Enable DevTools protocol to capture low-level network activity
-  const client = await page.target().createCDPSession();
-  await client.send('Network.enable');
+  // const client = await page.target().createCDPSession();
+  // await client.send('Network.enable');
 
   // Optional: allow Chrome to use cache explicitly (can be omitted if not overriding)
-  await client.send('Network.setCacheDisabled', { cacheDisabled: false });
+  // await client.send('Network.setCacheDisabled', { cacheDisabled: false });
 
   // Log where the response was served from
-  client.on('Network.responseReceived', (event) => {
-    const { response } = event;
-    const cacheType = response.fromDiskCache
-      ? 'fromDiskCache'
-      : response.fromMemoryCache
-      ? 'fromMemoryCache'
-      : 'fromNetwork';
-    console.log(`[CACHE] ${cacheType} - ${response.status} ${response.url}`);
-  });
+  // client.on('Network.responseReceived', (event) => {
+  //   const { response } = event;
+  //   const cacheType = response.fromDiskCache
+  //     ? 'fromDiskCache'
+  //     : response.fromMemoryCache
+  //     ? 'fromMemoryCache'
+  //     : 'fromNetwork';
+  //   console.log(`[CACHE] ${cacheType} - ${response.status} ${response.url}`);
+  // });
 
 
   // client.on('Network.dataReceived', (event) => {
@@ -90,10 +89,11 @@ const requestMap = new Map();
       0
     );
   
-    console.log(`[REQUEST] (${totalHeaderBytes} bytes) - ${request.method()} ${url.pathname}`, {
-      ...pseudoHeaders,
-      ...headers
-    });
+    // console.log(`[REQUEST] (${totalHeaderBytes} bytes) - ${request.method()} ${url.pathname}`, {
+    //   ...pseudoHeaders,
+    //   ...headers
+    // });
+    console.log(`[REQUEST] (${totalHeaderBytes} bytes) - ${request.method()} ${url.pathname}`);
   });
 
   page.on('response', async response => {
@@ -111,15 +111,16 @@ const requestMap = new Map();
   });
 
   console.log('[INFO] Navigating to YouTube embed...');
-  await page.goto('https://www.youtube.com/embed/5YGW2JRxWUU?autoplay=1&mute=1', {
-    waitUntil: 'networkidle2',
-  });
-
-
-  // console.log('[INFO] Navigating to Test YouTube embed...');
-  // await page.goto('https://www.youtube.com/embed/tWoo8i_VkvI?autoplay=1&mute=1', {
-  //   waitUntil: 'networkidle2',
+  // await page.goto('https://www.youtube.com/embed/5YGW2JRxWUU?autoplay=1&mute=1', {
+  //   waitUntil: 'domcontentloaded',
   // });
+
+  //await page.goto('https://www.youtube.com/embed/5YGW2JRxWUU?autoplay=1&mute=1');
+
+
+  await page.goto('https://www.youtube.com/embed/tWoo8i_VkvI?autoplay=1&mute=1', {
+    waitUntil: 'domcontentloaded',
+  });
 
   console.log('[INFO] Waiting for <video> element...');
   await page.waitForSelector('video');

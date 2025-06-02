@@ -2,6 +2,9 @@ import puppeteer from 'puppeteer-core';
 import fetch from 'node-fetch';
 import dns from 'dns/promises';
 
+import fs from 'fs';
+import path from 'path';
+
 
 // Simple command-line argument parser
 const args = process.argv.slice(2);
@@ -126,6 +129,7 @@ const classifyContent = async (page) => {
       '--ignore-certificate-errors',
       '--enable-quic',
       '--log-net-log=netlog.json',
+      // `--proxy-server=${proxyHost}`,
     ],
   };
 
@@ -175,7 +179,16 @@ const classifyContent = async (page) => {
 
     // await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
     // await page.goto(targetUrl, { waitUntil: 'load' });
+
+    // const res = await page.goto("https://" + targetUrl, { waitUntil: 'networkidle0' });
+
+
     const res = await page.goto("https://" + targetUrl, { waitUntil: 'networkidle2' });
+
+    // const res = await page.goto("https://" + targetUrl, { waitUntil: 'load' });
+
+    // const res = await page.goto("https://" + targetUrl, { waitUntil: 'domcontentloaded' });
+
 
     const country = await getCountryFromDNS(targetUrl);
 
@@ -188,6 +201,15 @@ const classifyContent = async (page) => {
 
     console.log(`Done loading: ${targetUrl}`);
     console.log(`Page load time: ${loadTime} seconds`);
+
+    const csvPath = path.resolve('webpage_test_results.csv');
+    const header = 'url,use_proxy,load_time\n';
+    const line = `"${targetUrl}","${useProxy}","${loadTime}"\n`;
+    if (!fs.existsSync(csvPath)) {
+      fs.writeFileSync(csvPath, header);
+    }
+    
+    fs.appendFileSync(csvPath, line);
 
   } catch (error) {
     console.error('Failed to load page:', error.message);

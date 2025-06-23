@@ -6,7 +6,7 @@ set -e  # Exit on errors
 CHROME_VERSION="137.0.7151.55"
 PLATFORM="linux64"
 ARCHIVE_NAME="chrome-${PLATFORM}.zip"
-DOWNLOAD_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/${PLATFORM}/chrome-${PLATFORM}.zip"
+DOWNLOAD_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/${PLATFORM}/chrome-headless-shell-${PLATFORM}.zip"
 
 # Define output directory
 OUTPUT_DIR="$(dirname "$0")/chromium"

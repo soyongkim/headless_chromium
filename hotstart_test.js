@@ -23,6 +23,7 @@ if (!targetUrl) {
   process.exit(1);
 }
 
+// Function to get country from DNS
 async function getCountryFromDNS(hostname) {
   try {
     const { address } = await dns.lookup(hostname);
@@ -39,9 +40,8 @@ async function getCountryFromDNS(hostname) {
   }
 }
 
-// 🚀 NEW FUNCTION: Detect Japanese Content
+// 🚀 Detect Japanese Content
 async function detectJapaneseContent(page) {
-  // Check body text and HTML lang/meta tags
   return await page.evaluate(() => {
     const textContent = document.body?.innerText || '';
     const hasJapaneseText = /[\u3040-\u30ff\u4e00-\u9faf]/.test(textContent);
@@ -61,7 +61,7 @@ async function detectJapaneseContent(page) {
   });
 }
 
-// Content classification remains unchanged
+// 🚀 Classify Content
 const classifyContent = async (page) => {
   return await page.evaluate(() => {
     const has = (sel) => document.querySelector(sel) !== null;
@@ -122,6 +122,23 @@ const classifyContent = async (page) => {
   });
 };
 
+// 🚀 Detect VPN/Proxy Blocking Page
+async function detectVPNBlock(page) {
+  const bodyText = await page.evaluate(() => document.body?.innerText || '');
+  const vpnBlockKeywords = [
+    'Looks like you are connecting through a VPN',
+    'proxy or unblocker service',
+    'VPN detected',
+    'Proxy detected',
+    'Streaming content is not available',
+  ];
+  const matchedKeywords = vpnBlockKeywords.filter(keyword =>
+    bodyText.toLowerCase().includes(keyword.toLowerCase())
+  );
+
+  return matchedKeywords.length > 0 ? matchedKeywords.join('; ') : 'No VPN Block Detected';
+}
+
 (async () => {
   const launchOptions = {
     headless: true,
@@ -172,11 +189,8 @@ const classifyContent = async (page) => {
     console.log('Starting page load...');
     const start = Date.now();
 
-    // const res = await page.goto("https://" + targetUrl, { waitUntil: 'networkidle2' });
+    const res = await page.goto("https://" + targetUrl, { waitUntil: 'networkidle2' });
     // const res = await page.goto("https://" + targetUrl, { waitUntil: 'domcontentloaded' });
-    const res = await page.goto("https://" + targetUrl, { waitUntil: 'load' });
-    // const res = await page.goto("https://" + targetUrl);
-
 
     const country = await getCountryFromDNS(targetUrl);
 
@@ -189,23 +203,27 @@ const classifyContent = async (page) => {
     console.log(`Page load time: ${loadTime} seconds`);
 
     // 🚀 Detect Japanese content
-    // const jpContent = await detectJapaneseContent(page);
-    // console.log(`Japanese Text Detected: ${jpContent.hasJapaneseText}`);
-    // console.log(`HTML <html lang="ja">: ${jpContent.isHtmlLangJapanese}`);
-    // console.log(`Meta tags indicating Japanese: ${jpContent.metaLangs.join(', ') || 'None'}`);
+    const jpContent = await detectJapaneseContent(page);
+    console.log(`Japanese Text Detected: ${jpContent.hasJapaneseText}`);
+    console.log(`HTML <html lang="ja">: ${jpContent.isHtmlLangJapanese}`);
+    console.log(`Meta tags indicating Japanese: ${jpContent.metaLangs.join(', ') || 'None'}`);
 
-    // const classification = await classifyContent(page);
-    // console.log(`Content Category: ${classification.category}`);
-    // console.log(`Page Metadata:`, classification.meta);
+    const classification = await classifyContent(page);
+    console.log(`Content Category: ${classification.category}`);
+    console.log(`Page Metadata:`, classification.meta);
 
-    // // Save CSV results
-    // const csvPath = path.resolve('webpage_test_results.csv');
-    // const header = 'url,use_proxy,load_time,japanese_text,html_lang,meta_langs,category\n';
-    // const line = `"${targetUrl}","${useProxy}","${loadTime}","${jpContent.hasJapaneseText}","${jpContent.isHtmlLangJapanese}","${jpContent.metaLangs.join(';')}","${classification.category}"\n`;
-    // if (!fs.existsSync(csvPath)) {
-    //   fs.writeFileSync(csvPath, header);
-    // }
-    // fs.appendFileSync(csvPath, line);
+    // 🚀 Detect VPN Block
+    const vpnBlockStatus = await detectVPNBlock(page);
+    console.log(`VPN Block Status: ${vpnBlockStatus}`);
+
+    // Save CSV results
+    const csvPath = path.resolve('webpage_test_results.csv');
+    const header = 'url,use_proxy,load_time,japanese_text,html_lang,meta_langs,category,vpn_block_status\n';
+    const line = `"${targetUrl}","${useProxy}","${loadTime}","${jpContent.hasJapaneseText}","${jpContent.isHtmlLangJapanese}","${jpContent.metaLangs.join(';')}","${classification.category}","${vpnBlockStatus}"\n`;
+    if (!fs.existsSync(csvPath)) {
+      fs.writeFileSync(csvPath, header);
+    }
+    fs.appendFileSync(csvPath, line);
 
   } catch (error) {
     console.error('Failed to load page:', error.message);

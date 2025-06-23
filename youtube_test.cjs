@@ -60,10 +60,15 @@ const proxyHost = 'http://localhost:4433';
 
   console.log('[INFO] Navigating to YouTube embed...');
   
-  // Japen-blocked video
+  // Japan-blocked video
   await page.goto('https://www.youtube.com/embed/5YGW2JRxWUU?autoplay=1&mute=1', {
     waitUntil: 'domcontentloaded',
   });
+
+  // // Japan-blocked music
+  //   await page.goto('https://music.youtube.com/watch?v=muoWDA6zmsY&autoplay=1', {
+  //   waitUntil: 'domcontentloaded',
+  // });
 
   // 30sec video
   // await page.goto('https://www.youtube.com/embed/tWoo8i_VkvI?autoplay=1&mute=1', {

@@ -4,6 +4,7 @@
     "csv-writer": "^1.6.0",
     "http2": "^3.3.6",
     "node-fetch": "^3.3.2",
+    "puppeteer-core": "^24.10.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },

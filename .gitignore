@@ -1,0 +1,14 @@
+# Ignore everything by default
+*
+
+# But not these files:
+!*.js
+!*.cjs
+!*.mjs
+!*.sh
+!package.json
+!package-lock.json
+!.gitignore
+
+# Ignore node_modules folder (standard practice)
+node_modules/

@@ -44,6 +44,7 @@ let mainHeaders   = {};
 let failedResources = [];
 let requestedResources = [];
 let succeededResources = new Set();
+let pendingResources = new Map(); // Track pending requests
 
 // ── Helper: Geo lookup ───────────────────────────────────────────────────────
 async function getCountryFromDNS (hostname) {
@@ -212,19 +213,28 @@ function extractDomain(url) {
     };
     requestedResources.push(resourceInfo);
     
+    // Track pending request
+    pendingResources.set(url, {
+      domain: domain,
+      cdn: cdn,
+      resourceType: req.resourceType(),
+      method: req.method(),
+      startTime: Date.now()
+    });
+    
     // Extract resource name (path + query) and truncate if longer than 20 characters
     let resourceName;
     try {
       const urlObj = new URL(url);
       resourceName = urlObj.pathname + urlObj.search;
-      if (resourceName.length > 20) {
-        resourceName = resourceName.slice(0, 20) + '...';
+      if (resourceName.length > 50) {
+        resourceName = resourceName.slice(0, 50) + '...';
       }
     } catch {
-      resourceName = url.length > 20 ? url.slice(0, 20) + '...' : url;
+      resourceName = url.length > 50 ? url.slice(0, 50) + '...' : url;
     }
     
-    console.log(`[${req.resourceType().toUpperCase()}] ${req.method()} ${domain}${resourceName} (${cdn})`);
+    console.log(`[${req.resourceType().toUpperCase()}] ${req.method()} ${domain}${resourceName}`);
   });
 
   page.on('requestfailed', req => {
@@ -233,6 +243,9 @@ function extractDomain(url) {
     const failure = req.failure();
     const resourceType = req.resourceType();
     const cdn = detectCDN(domain);
+    
+    // Remove from pending requests
+    pendingResources.delete(url);
     
     if (failure && isConnectionReset(failure.errorText)) {
       const failedResource = {
@@ -243,7 +256,7 @@ function extractDomain(url) {
         method: req.method()
       };
       failedResources.push(failedResource);
-      console.log(`[FAILED-RST] ${resourceType.toUpperCase()} ${domain} (${cdn}) - ${failure.errorText}`);
+      console.log(`[FAILED-RST] ${resourceType.toUpperCase()} ${domain} - ${failure.errorText}`);
     } else if (failure) {
       const failedResource = {
         domain: domain,
@@ -253,7 +266,7 @@ function extractDomain(url) {
         method: req.method()
       };
       failedResources.push(failedResource);
-      console.log(`[FAILED] ${resourceType.toUpperCase()} ${domain} (${cdn}) - ${failure.errorText}`);
+      console.log(`[FAILED] ${resourceType.toUpperCase()} ${domain} - ${failure.errorText}`);
     }
   });
 
@@ -262,6 +275,9 @@ function extractDomain(url) {
     const url = req.url();
     const domain = extractDomain(url);
     const cdn = detectCDN(domain);
+    
+    // Remove from pending requests
+    pendingResources.delete(url);
     
     succeededResources.add(domain);
 
@@ -283,7 +299,10 @@ function extractDomain(url) {
   try {
     console.log('Starting page load …');
     const t0        = Date.now();
-    const response  = await page.goto(`https://${targetUrl}`, { waitUntil:'load' });
+    const response  = await page.goto(`https://${targetUrl}`, { 
+      waitUntil:'load',
+      timeout: 30000  // 30 second timeout
+    });
 
     if (mainStatus === null) {                    // fallback
       mainStatus  = response.status();
@@ -327,14 +346,14 @@ function extractDomain(url) {
       console.log(`Failed domains:`);
       failedDomains.forEach((info, domain) => {
         const errorList = Array.from(info.errors).join(', ');
-        console.log(`  - ${domain} (${info.cdn}): ${info.count} resource${info.count > 1 ? 's' : ''} failed - ${errorList}`);
+        console.log(`  - ${domain} : ${info.count} resource${info.count > 1 ? 's' : ''} failed - ${errorList}`);
       });
     }
     
     if (resetFailures.length > 0) {
       console.log(`TCP RST failures: ${resetFailures.length}`);
       resetFailures.forEach(f => {
-        console.log(`  - ${f.resourceType}: ${f.domain} (${f.cdn})`);
+        console.log(`  - ${f.resourceType}: ${f.domain}`);
       });
     }
 
@@ -357,6 +376,32 @@ function extractDomain(url) {
 
   } catch (err) {
     console.error('Failed:', err.message);
+    
+    // If it's a navigation timeout, show pending resources
+    if (err.message.includes('Navigation timeout') || err.message.includes('timeout')) {
+      console.log('\n=== PENDING RESOURCES (likely causing timeout) ===');
+      if (pendingResources.size > 0) {
+        console.log(`${pendingResources.size} resources still pending:`);
+        pendingResources.forEach((info, url) => {
+          const waitTime = ((Date.now() - info.startTime) / 1000).toFixed(1);
+          // Extract resource name for display
+          let resourceName;
+          try {
+            const urlObj = new URL(url);
+            resourceName = urlObj.pathname + urlObj.search;
+            if (resourceName.length > 30) {
+              resourceName = resourceName.slice(0, 30) + '...';
+            }
+          } catch {
+            resourceName = url.length > 30 ? url.slice(0, 30) + '...' : url;
+          }
+          console.log(`  - [${info.resourceType.toUpperCase()}] ${info.domain}${resourceName} (${info.cdn}) - waiting ${waitTime}s`);
+        });
+      } else {
+        console.log('No pending resources found (timeout may be due to other factors)');
+      }
+      console.log('===================================================\n');
+    }
   } finally {
     await browser.close();
   }
